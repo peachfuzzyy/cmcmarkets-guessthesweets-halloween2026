@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Guess the Sweets</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: hero (headline + entry card | jar), then a live board of entries. */
+:root{
+  --bg:#FFEFF5; --surface:#FFFFFF; --fg:#2B1033; --muted:#7A5A82; --line:#EBCFE0;
+  --accent:#E0115F; --accent-fg:#FFFFFF; --mint:#0E9F88; --lemon:#FFC21A; --warn:#B4380E;
+  --glass:#FFFFFF; --glass-line:#2B1033;
+  --font-display:"Bagel Fat One","Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif;
+  --font-body:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"DM Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#1C0F26; --surface:#2A1738; --fg:#FBEAF4; --muted:#BE9FCB; --line:#47285B;
+    --accent:#FF4D8D; --accent-fg:#2B0A1A; --mint:#3DDBC0; --lemon:#FFD24D; --warn:#FF9A6B;
+    --glass:#35204A; --glass-line:#FBEAF4; color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-body); font-size:16px; line-height:1.5;
+  padding-block:32px 56px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:40px;align-items:center}
+.eyebrow{font-family:var(--font-mono);font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+h1{font-family:var(--font-display);font-weight:400;font-size:clamp(40px,7vw,76px);line-height:1;margin:0 0 16px;text-wrap:balance}
+h1 em{font-style:normal;color:var(--accent)}
+.lede{font-size:18px;max-width:52ch;margin:0 0 24px}
+.card{background:var(--surface);border:2px solid var(--fg);border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:16px;box-shadow:6px 6px 0 var(--accent)}
+.card h2{font-family:var(--font-display);font-weight:400;font-size:26px;margin:0}
+.fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+label{display:flex;flex-direction:column;gap:6px;font-weight:500;font-size:14px;min-width:0}
+input[type=text],input[type=number]{
+  font:inherit;font-size:18px;padding:12px 14px;border-radius:12px;border:2px solid var(--line);background:var(--bg);color:var(--fg);width:100%;min-width:0
+}
+input[type=number]{font-family:var(--font-mono)}
+input:focus-visible,button:focus-visible{outline:3px solid var(--mint);outline-offset:2px}
+input:disabled{opacity:.55}
+button{
+  font:inherit;font-weight:700;font-size:17px;padding:13px 22px;border-radius:999px;border:2px solid var(--fg);
+  background:var(--accent);color:var(--accent-fg);cursor:pointer;transition:transform .12s;align-self:flex-start
+}
+button:hover:not(:disabled){transform:translateY(-2px)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.msg{margin:0;font-size:15px;min-height:1.5em}
+.msg.ok{color:var(--mint);font-weight:700}
+.msg.bad{color:var(--warn);font-weight:500}
+.jar-col{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;margin:0}
+.jar-col svg{width:100%;max-width:340px;height:auto}
+.jar-col figcaption{font-size:13px;color:var(--muted);text-align:center}
+
+.result{background:var(--mint);color:#06241F;border:2px solid var(--fg);border-radius:20px;padding:24px}
+.result[hidden],.setup[hidden]{display:none!important}
+.result .big{font-family:var(--font-display);font-size:clamp(32px,6vw,56px);line-height:1.05;margin:0 0 6px}
+.result p{margin:0}
+.setup{background:var(--lemon);color:#2B1033;border:2px solid var(--fg);border-radius:16px;padding:16px 20px;font-weight:500}
+
+.board-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 24px}
+.board-head h2{font-family:var(--font-display);font-weight:400;font-size:clamp(28px,4vw,40px);margin:0}
+.count{font-family:var(--font-mono);color:var(--muted);font-size:14px}
+.count b{color:var(--fg);font-size:18px}
+.live{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--mint);margin-right:8px;box-shadow:0 0 0 0 var(--mint)}
+.tablewrap{overflow-x:auto;border:2px solid var(--fg);border-radius:16px;background:var(--surface);margin-top:14px}
+table{border-collapse:collapse;width:100%;min-width:420px}
+th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--line)}
+th{font-family:var(--font-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+tr.winner td{background:color-mix(in srgb,var(--lemon) 40%,transparent);font-weight:700}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+
+@media (max-width:760px){
+  .hero{grid-template-columns:minmax(0,1fr);gap:28px}
+  .fields{grid-template-columns:minmax(0,1fr)}
+  .jar-col{order:-1}
+  .jar-col svg{max-width:240px}
+}
+@media (prefers-reduced-motion: no-preference){
+  .live{animation:pulse 2s infinite}
+  @keyframes pulse{70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+}
+@media (prefers-reduced-motion: reduce){button{transition:none}button:hover:not(:disabled){transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <div>
+      <p class="eyebrow">Guess the jar</p>
+      <h1>How many <em>sweets</em> are in the jar?</h1>
+      <p class="lede">Make your best guess. The closest number wins a prize. One guess per name.</p>
+
+      <form class="card" id="guessForm" novalidate>
+        <h2>Your guess</h2>
+        <div class="fields">
+          <label for="nameInput">Your name
+            <input type="text" id="nameInput" maxlength="40" autocomplete="name">
+          </label>
+          <label for="guessInput">Number of sweets
+            <input type="number" id="guessInput" min="1" max="100000" step="1" inputmode="numeric">
+          </label>
+        </div>
+        <button type="submit" id="submitBtn">Lock in my guess</button>
+        <p class="msg" id="formMsg" role="status"></p>
+      </form>
+    </div>
+
+    <figure class="jar-col">
+      <svg id="jar" viewBox="0 0 300 380" role="img" aria-label="Illustration of a glass jar packed with colourful round sweets"></svg>
+      <figcaption>Illustration only. Count the real jar in your head.</figcaption>
+    </figure>
+  </section>
+
+  <section class="result" id="result" hidden aria-live="polite">
+    <p class="eyebrow" style="color:inherit;opacity:.75">The jar has been counted</p>
+    <p class="big" id="resultBig"></p>
+    <p id="resultWinner"></p>
+  </section>
+
+  <section>
+    <div class="board-head">
+      <h2><span class="live" aria-hidden="true"></span>Who has guessed</h2>
+      <p class="count"><b id="countNum">0</b> entries · updates live</p>
+    </div>
+    <div class="setup" id="setup" hidden></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Name</th><th class="num" id="guessHead">Guess</th><th class="num">Entered</th></tr></thead>
+        <tbody id="board"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ---------- SETTINGS: edit these, then re-upload this file ---------- */
+var SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL_HERE";      // e.g. https://abcdxyz.supabase.co
+var SUPABASE_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE"; // the "anon public" key
+var SHOW_GUESSES = true;   // false = the board shows names only, so nobody can copy a number
+var ENTRIES_OPEN = true;   // set to false to stop taking guesses
+var REAL_COUNT   = null;   // after counting the jar, set this to the real number to show the winner, e.g. 312
+/* -------------------------------------------------------------------- */
+
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var fmt = function(n){ return Number(n).toLocaleString("en"); };
+  var configured = SUPABASE_URL.indexOf("PASTE_") !== 0 && SUPABASE_KEY.indexOf("PASTE_") !== 0;
+  var API = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1/guesses";
+  var headers = {apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY};
+
+  (function drawJar(){
+    var svg = $("jar"), NS = "http://www.w3.org/2000/svg";
+    function el(tag, attrs, parent){
+      var e = document.createElementNS(NS, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      (parent || svg).appendChild(e); return e;
+    }
+    var jarPath = "M62 120 Q62 100 82 96 L218 96 Q238 100 238 120 L246 330 Q246 362 214 362 L86 362 Q54 362 54 330 Z";
+    var defs = el("defs", {});
+    var clip = el("clipPath", {id:"jarClip"}, defs);
+    el("path", {d:jarPath}, clip);
+    el("path", {d:jarPath, fill:"var(--glass)", opacity:".55"});
+    var g = el("g", {"clip-path":"url(#jarClip)"});
+    var seed = 7; function rnd(){ seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    var cols = ["#E0115F","#FFC21A","#0E9F88","#7B3FE4","#FF7A1A","#2AA9FF"];
+    var items = [];
+    for (var i = 0; i < 190; i++){
+      items.push({x:56 + rnd()*188, y:118 + rnd()*240, r:11 + rnd()*7, c:cols[Math.floor(rnd()*cols.length)]});
+    }
+    items.sort(function(a,b){ return a.y - b.y; });
+    items.forEach(function(s){
+      el("circle", {cx:s.x.toFixed(1), cy:s.y.toFixed(1), r:s.r.toFixed(1), fill:s.c, stroke:"#2B1033", "stroke-width":"1.5"}, g);
+      el("circle", {cx:(s.x - s.r*.3).toFixed(1), cy:(s.y - s.r*.35).toFixed(1), r:(s.r*.28).toFixed(1), fill:"#fff", opacity:".6"}, g);
+    });
+    el("path", {d:jarPath, fill:"none", stroke:"var(--glass-line)", "stroke-width":"4"});
+    el("rect", {x:"70", y:"110", width:"8", height:"200", rx:"4", fill:"#fff", opacity:".35"});
+    el("rect", {x:"78", y:"60", width:"144", height:"40", rx:"12", fill:"var(--accent)", stroke:"var(--glass-line)", "stroke-width":"4"});
+    el("rect", {x:"92", y:"70", width:"20", height:"8", rx:"4", fill:"#fff", opacity:".4"});
+  })();
+
+  function setMsg(text, kind){ var e = $("formMsg"); e.textContent = text || ""; e.className = "msg" + (kind ? " " + kind : ""); }
+
+  if (!SHOW_GUESSES) $("guessHead").hidden = true;
+  if (!ENTRIES_OPEN || REAL_COUNT !== null){
+    ["nameInput","guessInput","submitBtn"].forEach(function(id){ $(id).disabled = true; });
+    setMsg("Entries are closed.", "");
+  }
+  if (!configured){
+    var s = $("setup"); s.hidden = false;
+    s.textContent = "Setup needed: add your Supabase URL and key at the top of the script in this file. Visitors will not see this once it is done.";
+  }
+
+  function render(rows){
+    $("countNum").textContent = rows.length;
+    var body = $("board"); body.textContent = "";
+    var winnerId = null;
+    if (REAL_COUNT !== null && rows.length){
+      var best = rows.slice().sort(function(a,b){
+        return Math.abs(a.guess - REAL_COUNT) - Math.abs(b.guess - REAL_COUNT) || new Date(a.created_at) - new Date(b.created_at);
+      })[0];
+      winnerId = best.id;
+      $("result").hidden = false;
+      $("resultBig").textContent = fmt(REAL_COUNT) + " sweets";
+      var d = Math.abs(best.guess - REAL_COUNT);
+      $("resultWinner").textContent = "Winner: " + best.name + ", with a guess of " + fmt(best.guess) + (d === 0 ? ", spot on." : ", off by " + fmt(d) + ".");
+    }
+    if (!rows.length){
+      var tr = document.createElement("tr"), td = document.createElement("td");
+      td.colSpan = 3; td.className = "empty"; td.textContent = "No guesses yet. Be the first.";
+      tr.appendChild(td); body.appendChild(tr); return;
+    }
+    rows.forEach(function(r){
+      var tr = document.createElement("tr");
+      if (r.id === winnerId) tr.className = "winner";
+      var a = document.createElement("td"); a.textContent = r.name; tr.appendChild(a);
+      var b = document.createElement("td"); b.className = "num"; b.textContent = SHOW_GUESSES ? fmt(r.guess) : ""; if (!SHOW_GUESSES) b.hidden = true; tr.appendChild(b);
+      var c = document.createElement("td"); c.className = "num";
+      c.textContent = new Date(r.created_at).toLocaleString("en-SG", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"});
+      tr.appendChild(c); body.appendChild(tr);
+    });
+  }
+
+  function load(){
+    if (!configured) { render([]); return Promise.resolve(); }
+    return fetch(API + "?select=id,name,guess,created_at&order=created_at.desc&limit=1000", {headers: headers})
+      .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(render)
+      .catch(function(){ /* keep the last board on screen; try again next tick */ });
+  }
+
+  $("guessForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    if (!ENTRIES_OPEN || REAL_COUNT !== null) return;
+    var name = $("nameInput").value.trim().replace(/\s+/g, " ");
+    var raw = $("guessInput").value.trim();
+    var n = Number(raw);
+    if (!name){ setMsg("Add your name so we know who won.", "bad"); $("nameInput").focus(); return; }
+    if (raw === "" || !Number.isInteger(n) || n < 1 || n > 100000){ setMsg("Enter a whole number between 1 and 100,000.", "bad"); $("guessInput").focus(); return; }
+    if (!configured){ setMsg("This page is not connected to its database yet.", "bad"); return; }
+    $("submitBtn").disabled = true;
+    fetch(API, {
+      method: "POST",
+      headers: Object.assign({"Content-Type":"application/json", Prefer:"return=minimal"}, headers),
+      body: JSON.stringify({name: name, guess: n})
+    }).then(function(r){
+      if (r.status === 409){ setMsg("Someone has already entered with that name. Add a last initial and try again.", "bad"); return; }
+      if (!r.ok){ setMsg("Your guess did not save. Check your connection and try again.", "bad"); return; }
+      setMsg("Locked in: " + fmt(n) + ". Good luck, " + name + "!", "ok");
+      $("guessForm").reset();
+      try { localStorage.setItem("sweetsGuessed", "1"); } catch (e){}
+      return load();
+    }).catch(function(){
+      setMsg("Your guess did not save. Check your connection and try again.", "bad");
+    }).then(function(){ if (ENTRIES_OPEN && REAL_COUNT === null) $("submitBtn").disabled = false; });
+  });
+
+  load();
+  setInterval(function(){ if (!document.hidden) load(); }, 5000);
+})();
+</script>
+</body>
+</html>
